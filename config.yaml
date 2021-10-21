@@ -1,0 +1,45 @@
+model: "ViT-B/32"
+max_file_size: 10485760
+categories:
+    - name: image_type
+      values:
+        - label: dress
+          text: 
+            - person on image
+            - a dress
+        - label: other
+          text:
+            - a sheet
+            - price tag
+            - a shoes
+            - a belt
+            - a bow tie
+            - a jewelry
+            - a lace
+    - name: env_type
+      conditions:
+        - type: must
+          category: image_type
+          value: dress
+      values:
+        - label: indoor
+          text: indoor
+        - label: outdoor
+          text: outdoor
+        - label: church
+          text: in a church
+        - label: forest
+          text: in a forest
+    - name: face
+      conditions:
+        - type: must
+          category: image_type
+          value: dress
+      values:
+        - label: no_face
+          text: 
+            - emoji on image
+            - people without faces on image
+            - nobody on image
+        - label: face
+          text: face on image
