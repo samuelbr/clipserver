@@ -1,0 +1,51 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Docker Build (python)
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+    REGISTRY: ghcr.io
+    IMAGE_NAME: ${{ github.repository }}
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  docker-default:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - uses: actions/checkout@v2
+
+
+    - name: Generate Dockerfile
+      run: ./generate-Dockerfile.sh --python-only
+
+    - name: Log into registry ${{ env.REGISTRY }}
+      uses: docker/login-action@v1 
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Docker meta
+      id: meta
+      uses: docker/metadata-action@v3
+      with:
+         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v2
+      with:
+        push: true
+        context: .build
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
