@@ -112,6 +112,7 @@ class ClipServer:
                 if self.config['max_file_size'] / 8192 < chunks:
                     is_ok = False
                     break
+            f.flush()
             if is_ok:
                 img = Image.open(f.name)
                 return self.service.predict(img)
