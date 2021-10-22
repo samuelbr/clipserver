@@ -121,8 +121,11 @@ class ClipServer:
     @cherrypy.expose
     @cherrypy.tools.json_out()
     def predictByUpload(self, ufile):
-        img = Image.open(ufile.file)
-        return self.service.predict(img)
+        with tempfile.NamedTemporaryFile() as f:
+            f.write(ufile.file.read())
+            f.flush()
+            img = Image.open(f.name)
+            return self.service.predict(img)
 
 if __name__ == '__main__':
     service = ClipService(CONFIG)
