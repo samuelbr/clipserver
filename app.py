@@ -5,6 +5,9 @@ import torch
 import copy
 import tempfile
 import requests
+import numpy as np
+
+from pathlib import Path
 
 from PIL import Image
 
@@ -13,12 +16,21 @@ def load_config():
         return yaml.safe_load(f)
 
 CONFIG = load_config()
-print(CONFIG)
+
+def softmax(x):
+    """Compute softmax values for each sets of scores in x."""
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum()
+
+def euclidean_distances(vector, points):
+    return np.array([np.linalg.norm(vector-point) for point in points])
+
 class ClipService:
     def __init__(self, config):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model, self.preprocess = clip.load(config['model'], self.device)
         self.init_categories(config)
+        self.init_vectors(config)
     
     def init_categories(self, config):
         self.categories = []
@@ -38,7 +50,44 @@ class ClipService:
             category['_labels'] = labels
             category['_tensors'] = clip.tokenize(texts).to(self.device)
             self.categories.append(category)
+    
+    def init_vectors(self, config):
+        vectors_path = config['vectors']['path']
+        vectors_folder = list(Path(vectors_path).glob('*.txt'))
+        
+        
+        self.labels_arr = []
+        self.vectors_arr = []
+        self.labels_map = {}
+        
+        for idx, file_path in enumerate(vectors_folder):
+            self.labels_map[idx] = file_path.stem
+            vectors = np.loadtxt(str(file_path))
+            print(vectors.shape)
+            if len(vectors.shape) == 1:
+                vectors = [vectors]
+                
+            for vector in vectors:
+                self.labels_arr.append(idx)
+                self.vectors_arr.append(vector)
+                
+        self.labels_arr = np.array(self.labels_arr)
 
+    def cluster(self, image):
+        img = self.preprocess(image).unsqueeze(0).to(self.device)
+        image_features = self.model.encode_image(img)
+        vector = image_features.cpu().detach().numpy()[0]
+        
+        distances = -euclidean_distances(vector, self.vectors_arr)
+        prob = softmax(distances)
+
+        result = {}
+        for label_candidate in set(self.labels_arr):
+            label_prob = (prob * (self.labels_arr == label_candidate)).sum()
+            result[self.labels_map[label_candidate]] =  label_prob
+        
+        return result
+            
     def predict(self, image):
         pimage = self.preprocess(image).unsqueeze(0).to(self.device)
         results = []
@@ -98,9 +147,7 @@ class ClipServer:
     def index(self):
         return 'Hello'
     
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def predictByUrl(self, url):
+    def _opByUrl(self, url, op):
         is_ok = True
         with tempfile.NamedTemporaryFile() as f:
             res = requests.get(url, stream=True)
@@ -115,17 +162,35 @@ class ClipServer:
             f.flush()
             if is_ok:
                 img = Image.open(f.name)
-                return self.service.predict(img)
+                return op(img)
         return {'Error': True}
     
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def predictByUpload(self, ufile):
+    def _opByUpload(self, ufile, op):
         with tempfile.NamedTemporaryFile() as f:
             f.write(ufile.file.read())
             f.flush()
             img = Image.open(f.name)
-            return self.service.predict(img)
+            return op(img)
+    
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def predictByUrl(self, url):
+        return self._opByUrl(url, self.service.predict)
+    
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def predictByUpload(self, ufile):
+        return self._opByUpload(ufile, self.service.predict)
+    
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def clusterByUrl(self, url):
+        return self._opByUrl(url, self.service.cluster)
+    
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def clusterByUpload(self, ufile):
+        return self._opByUpload(ufile, self.service.cluster)
 
 if __name__ == '__main__':
     service = ClipService(CONFIG)

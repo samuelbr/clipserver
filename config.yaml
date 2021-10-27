@@ -43,3 +43,6 @@ categories:
             - nobody on image
         - label: face
           text: face on image
+vectors:
+    path: vectors
+    
