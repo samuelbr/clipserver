@@ -9,6 +9,7 @@ RUN apt-get update && \
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable.html
 
+COPY vectors .
 COPY app.py app.py
 COPY config.yaml config.yaml
 
