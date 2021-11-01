@@ -74,19 +74,20 @@ class ClipService:
         self.labels_arr = np.array(self.labels_arr)
 
     def cluster(self, image):
-        img = self.preprocess(image).unsqueeze(0).to(self.device)
-        image_features = self.model.encode_image(img)
-        vector = image_features.cpu().detach().numpy()[0]
-        
-        distances = -euclidean_distances(vector, self.vectors_arr)
-        prob = softmax(distances)
+        with torch.no_grad():
+            img = self.preprocess(image).unsqueeze(0).to(self.device)
+            image_features = self.model.encode_image(img)
+            vector = image_features.cpu().detach().numpy()[0]
 
-        result = {}
-        for label_candidate in set(self.labels_arr):
-            label_prob = (prob * (self.labels_arr == label_candidate)).sum()
-            result[self.labels_map[label_candidate]] =  label_prob
-        
-        return result
+            distances = -euclidean_distances(vector, self.vectors_arr)
+            prob = softmax(distances)
+
+            result = {}
+            for label_candidate in set(self.labels_arr):
+                label_prob = (prob * (self.labels_arr == label_candidate)).sum()
+                result[self.labels_map[label_candidate]] =  label_prob
+
+            return result
             
     def predict(self, image):
         pimage = self.preprocess(image).unsqueeze(0).to(self.device)
