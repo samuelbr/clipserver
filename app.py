@@ -73,6 +73,13 @@ class ClipService:
                 
         self.labels_arr = np.array(self.labels_arr)
 
+    def vector(self, image):
+        with torch.no_grad():
+            img = self.preprocess(image).unsqueeze(0).to(self.device)
+            image_features = self.model.encode_image(img)
+            vector = image_features.cpu().detach().numpy()[0]
+            return list(map(float, vector))
+
     def cluster(self, image):
         with torch.no_grad():
             img = self.preprocess(image).unsqueeze(0).to(self.device)
@@ -192,6 +199,16 @@ class ClipServer:
     @cherrypy.tools.json_out()
     def clusterByUpload(self, ufile):
         return self._opByUpload(ufile, self.service.cluster)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def vectorByUrl(self, url):
+        return self._opByUrl(url, self.service.vector)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def vectorByUpload(self, ufile):
+        return self._opByUpload(ufile, self.service.vector)
 
 if __name__ == '__main__':
     service = ClipService(CONFIG)
